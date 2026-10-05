@@ -1,0 +1,10 @@
+import { z } from 'zod';
+const text = z.string().trim().min(1).max(200);
+const quantity = z.number().finite().min(0).max(Number.MAX_SAFE_INTEGER);
+export const materialSchema = z.object({ id: text, code: text, name: text, aliases: z.array(text).max(30), specification: text, unit: text, currency: z.string().regex(/^[A-Z]{3}$/), unitPriceMinor: quantity.int() }).strict();
+export const inventorySchema = z.object({ id: text, materialId: text, quantity, reserved: quantity, status: z.enum(['AVAILABLE', 'FROZEN', 'SCRAPPED']) }).strict();
+export const purchaseSchema = z.object({ id: text, materialId: text, quantity, received: quantity, status: z.enum(['CONFIRMED', 'COMPLETED', 'CANCELLED']) }).strict();
+export const querySchema = z.object({ query: text, specification: text.optional(), unit: text.optional(), materialId: text.optional() }).strict();
+export const taskSchema = querySchema.extend({ type: z.enum(['PURCHASE', 'MATERIAL']), demand: quantity.optional(), safetyStock: quantity.optional(), requestedQuantity: quantity.optional(), newMaterial: materialSchema.optional() }).strict();
+export const materialIdSchema = z.object({ materialId: text }).strict();
+export const proposalArgsSchema = z.object({ proposalId: text, version: z.number().int().positive() }).strict();
