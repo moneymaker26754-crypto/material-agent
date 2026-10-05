@@ -9,8 +9,8 @@ export function searchMaterials(materials: Material[], query: MaterialQuery): Ca
     if (query.specification && normalize(query.specification) !== normalize(material.specification)) return [];
     if (query.unit && normalize(query.unit) !== normalize(material.unit)) return [];
     const exactCode = normalize(material.code) === term;
-    const exactName = [material.name, ...material.aliases].some(n => normalize(n) === term);
-    const partial = [material.name, material.code, ...material.aliases].some(n => normalize(n).includes(term));
+    const exactName = [material.name, material.specification, ...material.aliases].some(n => normalize(n) === term);
+    const partial = [material.name, material.code, material.specification, ...material.aliases].some(n => normalize(n).includes(term));
     if (!exactCode && !exactName && !partial) return [];
     return [{ material, score: exactCode ? 1 : exactName ? 0.9 : 0.6, reasons: [exactCode ? 'exact_code' : exactName ? 'name_or_alias' : 'partial_name', ...(query.specification ? ['specification_match'] : []), ...(query.unit ? ['unit_match'] : [])] }];
   }).sort((a, b) => b.score - a.score || a.material.code.localeCompare(b.material.code));

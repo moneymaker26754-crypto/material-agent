@@ -3,6 +3,7 @@ import { Application } from '../../src/agent/workflow.js';
 import { Store } from '../../src/session/store.js';
 import { ToolRouter } from '../../src/tools/router.js';
 import { LocalDataSource } from '../../src/tools/data-source.js';
+import { materials } from '../../src/domain/fixtures.js';
 const stores: Store[] = []; afterEach(() => stores.splice(0).forEach(s => s.close()));
 const actor = { userId: 'a', role: 'USER' as const };
 function setup() { const store = new Store(':memory:'); stores.push(store); const app = new Application(store); return { store, app, s: app.create(actor, { type: 'PURCHASE', query: 'BRG-6204', demand: 1, safetyStock: 0, requestedQuantity: 1 }) }; }
@@ -33,4 +34,16 @@ it('rechecks approval binding even when riskLevel is downgraded by a caller', as
 });
 it('can run the same application using its local data source contract', async () => {
   const { store, s } = setup(); const app = new Application(store, { mode: 'demo' }, new LocalDataSource(store)); expect((await app.run(actor, s.id)).state).toBe('WAITING_APPROVAL');
+});
+it('rejects valid-shaped detail records for a different material', async () => {
+  const { store, s } = setup(), local = new LocalDataSource(store);
+  const app = new Application(store, { mode: 'demo' }, { async call(name, args) { return name === 'get_material_detail' ? materials[3] : local.call(name, args); } });
+  const result = await app.run(actor, s.id); expect(result.state).toBe('FAILED'); expect(store.erpCount()).toBe(0);
+  expect(app.evidence(actor, s.id).some(e => e.ref.source === 'get_material_detail')).toBe(false);
+});
+it('rejects valid-shaped external candidates contradicting the query', async () => {
+  const { store, s } = setup();
+  const app = new Application(store, { mode: 'demo' }, { async call() { return [{ material: materials[3], score: 1, reasons: ['forged_score'] }]; } });
+  expect((await app.run(actor, s.id)).state).toBe('FAILED'); expect(store.erpCount()).toBe(0);
+  expect(app.evidence(actor, s.id)).toEqual([]);
 });

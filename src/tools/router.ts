@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { materialSchema } from '../domain/schemas.js';
-import { duplicateCheck, estimateImpact } from '../domain/rules.js';
+import { duplicateCheck, estimateImpact, searchMaterials } from '../domain/rules.js';
 import { AppError, type Actor, type Approval, type Candidate, type Inventory, type Purchase, type Session, type ToolCall, type ToolResult } from '../domain/types.js';
 import { preToolUse } from '../harness/policy.js';
 import { hash, type Store } from '../session/store.js';
@@ -41,14 +41,25 @@ export class ToolRouter {
         const existing = session.approvalId ? this.store.getApproval(session.approvalId) : undefined;
         if (existing?.decision === 'REJECTED' && existing.proposalId === p.id) throw new AppError('APPROVAL_REJECTED', 'proposal version rejected', 409);
         const a: Approval = existing?.decision === 'PENDING' ? existing : { id: randomUUID(), sessionId: session.id, proposalId: p.id, proposalVersion: p.version, toolName: def.name, argsHash: p.argsHash, idempotencyKey: p.idempotencyKey, decision: 'PENDING' };
-        this.store.saveApproval(a); session.approvalId = a.id;
-        return { requestId: call.requestId, ok: false, errorCode: 'APPROVAL_REQUIRED', evidenceRefs: [], latencyMs: performance.now() - started };
+        session.approvalId = a.id;
+        return { requestId: call.requestId, ok: false, data: a, errorCode: 'APPROVAL_REQUIRED', evidenceRefs: [], latencyMs: performance.now() - started };
       }
       let data: unknown;
       if (def.risk === 0) {
         data = await this.read(def.name, args);
         if (def.output) data = def.output.parse(data);
-        if (def.name === 'search_material') data = z.array(z.object({ material: materialSchema, score: z.number().min(0).max(1), reasons: z.array(z.string()) }).strict()).parse(data);
+        if (def.name === 'search_material') {
+          const returned = z.array(z.object({ material: materialSchema, score: z.number().min(0).max(1), reasons: z.array(z.string()) }).strict()).parse(data);
+          const checked = searchMaterials(returned.map(c => c.material), args as unknown as import('../domain/types.js').MaterialQuery);
+          if (checked.length !== returned.length || new Set(returned.map(c => c.material.id)).size !== returned.length) throw new AppError('INVALID_DATA', 'candidate contradicts requested query or contains duplicate identifiers');
+          data = checked;
+        }
+        if (def.name === 'get_material_detail' && (hash(data) !== hash(session.material) || (data as import('../domain/types.js').Material).id !== args.materialId)) throw new AppError('INVALID_DATA', 'detail differs from selected material evidence');
+        if (def.name === 'get_inventory' || def.name === 'get_purchase_history') if ((data as { materialId: string }[]).some(row => row.materialId !== args.materialId)) throw new AppError('INVALID_DATA', 'data record material binding mismatch');
+      } else if (def.name === 'record_attribution') {
+        const ids = args.evidenceIds as string[];
+        if (args.materialId !== session.material?.id || ids.some(id => !session.context.evidence.some(e => e.evidenceId === id))) throw new AppError('INVALID_DATA', 'attribution references unverified evidence');
+        data = args;
       } else if (def.name === 'check_duplicate') data = duplicateCheck(session.material!, this.records<Inventory>(session, 'get_inventory'), this.records<Purchase>(session, 'get_purchase_history'));
       else if (def.name === 'estimate_purchase_impact') data = estimateImpact(session.task, session.material!, this.records<Inventory>(session, 'get_inventory'), this.records<Purchase>(session, 'get_purchase_history'));
       else if (def.risk === 2) { this.store.saveProposal(session.proposal!); data = session.proposal; }
@@ -70,7 +81,9 @@ export class ToolRouter {
   }
   records<T>(session: Session, source: string): T[] {
     const all = this.store.list<import('../domain/types.js').Evidence>('evidence', session.id);
-    return (all.filter(e => e.ref.source === source).at(-1)?.data ?? []) as T[];
+    const record = all.filter(e => e.ref.source === source && e.ref.recordId === session.material?.id).at(-1);
+    if (!record) throw new AppError('NEED_MORE_EVIDENCE', `missing ${source} evidence`);
+    return record.data as T[];
   }
   private async read(name: string, args: Record<string, unknown>) {
     for (let attempt = 0; attempt < 3; attempt++) {

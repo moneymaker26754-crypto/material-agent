@@ -1,14 +1,18 @@
 import type { Task } from '../domain/types.js';
-export interface BenchmarkCase { name: string; task: Task; expectedMaterial?: string; expectedDuplicate?: boolean; expectedState: string; approve?: boolean; reject?: boolean; clarify?: Partial<Task>; recover?: boolean; probeUnauthorized?: boolean }
+export interface BenchmarkCase { name: string; task: Task; expectedRetrievedMaterial?: string; expectedMaterial?: string; expectedDuplicate?: boolean; expectedState: string; expectedTools: string[]; approve?: boolean; reject?: boolean; clarify?: Partial<Task>; recover?: boolean; interruptAfterWrite?: boolean; probeUnauthorized?: boolean }
 const purchase: Task = { type: 'PURCHASE', query: 'BRG-6204', demand: 20, safetyStock: 3, requestedQuantity: 15 };
+const read = ['search_material', 'get_material_detail', 'record_attribution', 'get_purchase_history', 'get_inventory', 'check_duplicate'];
+const proposed = [...read, 'estimate_purchase_impact', 'create_purchase_proposal'];
+const completed = [...proposed, 'execute_approved_action'];
 export const cases: BenchmarkCase[] = [
-  { name: 'duplicate-stock-and-order', task: purchase, expectedMaterial: 'm-bearing-6204', expectedDuplicate: true, expectedState: 'COMPLETED', approve: true },
-  { name: 'no-stock-new-purchase', task: { ...purchase, query: 'FLT-A', demand: 3, safetyStock: 1, requestedQuantity: 4 }, expectedMaterial: 'm-filter-a', expectedDuplicate: false, expectedState: 'COMPLETED', approve: true },
-  { name: 'ambiguous-name', task: { ...purchase, query: '轴承' }, expectedMaterial: 'm-bearing-6204', expectedState: 'NEED_MORE_EVIDENCE' },
-  { name: 'clarified-specification', task: { ...purchase, query: '轴承' }, clarify: { specification: '6204' }, expectedMaterial: 'm-bearing-6204', expectedDuplicate: true, expectedState: 'COMPLETED', approve: true },
-  { name: 'missing-quantities', task: { type: 'PURCHASE', query: 'BRG-6204' }, expectedMaterial: 'm-bearing-6204', expectedDuplicate: true, expectedState: 'NEED_MORE_EVIDENCE' },
-  { name: 'high-risk-awaiting-approval', task: purchase, expectedMaterial: 'm-bearing-6204', expectedDuplicate: true, expectedState: 'WAITING_APPROVAL', probeUnauthorized: true },
-  { name: 'rejected-proposal', task: purchase, expectedMaterial: 'm-bearing-6204', expectedDuplicate: true, expectedState: 'PROPOSAL_READY', reject: true },
-  { name: 'restart-and-repeated-resume', task: purchase, expectedMaterial: 'm-bearing-6204', expectedDuplicate: true, expectedState: 'COMPLETED', approve: true, recover: true },
-  { name: 'material-master-create', task: { type: 'MATERIAL', query: '新密封圈', newMaterial: { id: 'm-new-seal', code: 'SEAL-NEW', name: '新密封圈', aliases: [], specification: 'S10', unit: '个', currency: 'CNY', unitPriceMinor: 200 } }, expectedDuplicate: false, expectedState: 'COMPLETED', approve: true }
+  { name: 'duplicate-stock-and-order', task: purchase, expectedRetrievedMaterial: 'm-bearing-6204', expectedMaterial: 'm-bearing-6204', expectedDuplicate: true, expectedTools: completed, expectedState: 'COMPLETED', approve: true },
+  { name: 'no-stock-new-purchase', task: { ...purchase, query: 'FLT-A', demand: 3, safetyStock: 1, requestedQuantity: 4 }, expectedRetrievedMaterial: 'm-filter-a', expectedMaterial: 'm-filter-a', expectedDuplicate: false, expectedTools: completed, expectedState: 'COMPLETED', approve: true },
+  { name: 'ambiguous-name', task: { ...purchase, query: '轴承' }, expectedRetrievedMaterial: 'm-bearing-6204', expectedTools: ['search_material'], expectedState: 'NEED_MORE_EVIDENCE' },
+  { name: 'clarified-specification', task: { ...purchase, query: '轴承' }, clarify: { specification: '6204' }, expectedRetrievedMaterial: 'm-bearing-6204', expectedMaterial: 'm-bearing-6204', expectedDuplicate: true, expectedTools: ['search_material', ...completed], expectedState: 'COMPLETED', approve: true },
+  { name: 'missing-quantities', task: { type: 'PURCHASE', query: 'BRG-6204' }, expectedRetrievedMaterial: 'm-bearing-6204', expectedMaterial: 'm-bearing-6204', expectedDuplicate: true, expectedTools: read, expectedState: 'NEED_MORE_EVIDENCE' },
+  { name: 'high-risk-awaiting-approval', task: purchase, expectedRetrievedMaterial: 'm-bearing-6204', expectedMaterial: 'm-bearing-6204', expectedDuplicate: true, expectedTools: proposed, expectedState: 'WAITING_APPROVAL', probeUnauthorized: true },
+  { name: 'rejected-proposal', task: purchase, expectedRetrievedMaterial: 'm-bearing-6204', expectedMaterial: 'm-bearing-6204', expectedDuplicate: true, expectedTools: proposed, expectedState: 'PROPOSAL_READY', reject: true },
+  { name: 'restart-and-repeated-resume', task: purchase, expectedRetrievedMaterial: 'm-bearing-6204', expectedMaterial: 'm-bearing-6204', expectedDuplicate: true, expectedTools: completed, expectedState: 'COMPLETED', approve: true, recover: true },
+  { name: 'write-before-checkpoint-interruption', task: purchase, expectedRetrievedMaterial: 'm-bearing-6204', expectedMaterial: 'm-bearing-6204', expectedDuplicate: true, expectedTools: completed, expectedState: 'COMPLETED', approve: true, interruptAfterWrite: true },
+  { name: 'material-master-create', task: { type: 'MATERIAL', query: '新密封圈', newMaterial: { id: 'm-new-seal', code: 'SEAL-NEW', name: '新密封圈', aliases: [], specification: 'S10', unit: '个', currency: 'CNY', unitPriceMinor: 200 } }, expectedMaterial: 'm-new-seal', expectedDuplicate: false, expectedTools: ['search_material', 'search_material', 'search_material', 'record_attribution', 'get_purchase_history', 'get_inventory', 'check_duplicate', 'create_material_proposal', 'execute_approved_action'], expectedState: 'COMPLETED', approve: true }
 ];

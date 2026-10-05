@@ -9,3 +9,7 @@ it('preserves policy and evidence identity during compaction', () => {
 });
 it('uses server risk rather than a model supplied downgrade', () => expect(preToolUse({ risk: 3, stateAllowed: true, authorized: true, evidenceComplete: true, approved: false }).action).toBe('APPROVAL'));
 it('denies wrong-stage and unauthorized operations', () => { expect(preToolUse({ risk: 0, stateAllowed: false, authorized: true, evidenceComplete: true, approved: false }).action).toBe('DENY'); expect(preToolUse({ risk: 0, stateAllowed: true, authorized: false, evidenceComplete: true, approved: false }).action).toBe('DENY'); });
+it('bounds model evidence references while preserving the full source pack', () => {
+  const pack = { task: { type: 'PURCHASE' as const, query: 'x' }, state: 'DISCOVERY' as const, evidence: Array.from({ length: 1000 }, (_, i) => ({ evidenceId: `e${i}`, source: 'ERP', recordId: `m${i}` })), policy: ['L3 requires approval'], toolTrace: [] };
+  expect(compactContext(pack).evidence.length).toBeLessThanOrEqual(32); expect(pack.evidence).toHaveLength(1000); expect(compactContext(pack).policy).toEqual(pack.policy);
+});

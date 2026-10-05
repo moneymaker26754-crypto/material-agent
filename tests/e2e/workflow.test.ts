@@ -68,11 +68,22 @@ describe('controlled workflow', () => {
   it('reconciles ERP writes when the process stops before the verification checkpoint', async () => {
     class InterruptStore extends Store {
       interrupted = false;
-      override saveSession(s: Session) { if (s.state === 'VERIFYING' && !this.interrupted) { this.interrupted = true; throw new Error('injected checkpoint failure'); } return super.saveSession(s); }
+      override saveSession(s: Session, changes?: Parameters<Store['saveSession']>[1]) { if (s.state === 'VERIFYING' && !this.interrupted) { this.interrupted = true; throw new Error('injected checkpoint failure'); } return super.saveSession(s, changes); }
     }
     const store = new InterruptStore(':memory:'); stores.push(store); const a = new Application(store);
     const s = await a.run(user, a.create(user, task).id); a.decide(reviewer, s.approvalId!, 'APPROVED', 'yes');
     expect((await a.run(user, s.id)).state).toBe('RECOVERABLE'); expect(store.erpCount()).toBe(1);
+    a.planner.execute = async () => { throw new Error('model unavailable'); };
     expect((await a.run(user, s.id)).state).toBe('COMPLETED'); expect(store.erpCount()).toBe(1);
+  });
+  it('does not create an equivalent existing master under a new code', async () => {
+    const a = app(), existing = a.store.getMaterial('m-bearing-6204')!;
+    const s = await a.run(user, a.create(user, { type: 'MATERIAL', query: 'new-code', newMaterial: { ...existing, id: 'different-id', code: 'new-code' } }).id);
+    expect(['NEED_MORE_EVIDENCE', 'COMPLETED']).toContain(s.state); expect(s.approvalId).toBeUndefined(); expect(a.store.erpCount()).toBe(0);
+  });
+  it('rejects task constraints that conflict with a proposed new material', async () => {
+    const a = app(), existing = a.store.getMaterial('m-bearing-6204')!;
+    const s = await a.run(user, a.create(user, { type: 'MATERIAL', query: 'nonexistent', specification: 'wrong', unit: 'kg', newMaterial: { ...existing, id: 'new-id', code: 'new-code' } }).id);
+    expect(s.state).toBe('FAILED'); expect(s.approvalId).toBeUndefined();
   });
 });

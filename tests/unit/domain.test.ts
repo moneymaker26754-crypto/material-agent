@@ -19,6 +19,7 @@ describe('material retrieval', () => {
   it('retains ambiguous names for clarification', () => expect(searchMaterials([material, other], { query: '轴承' })).toHaveLength(2));
   it('rejects conflicting units', () => expect(searchMaterials([material], { query: '轴承', unit: 'kg' })).toEqual([]));
   it('does not treat blank queries as every material', () => expect(() => searchMaterials([material], { query: ' ' })).toThrow());
+  it('retrieves by specification without needing the material name', () => expect(searchMaterials([material, other], { query: '6204' }).map(c => c.material.id)).toEqual(['m1']));
 });
 describe('deterministic purchasing', () => {
   it('counts only available stock and outstanding confirmed orders', () => expect(duplicateCheck(material, inventory, purchases)).toMatchObject({ duplicate: true, availableQuantity: 8, onOrderQuantity: 5, historicalPurchaseIds: ['p1', 'p2', 'p3'] }));

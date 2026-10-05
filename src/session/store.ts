@@ -12,6 +12,7 @@ function canonical(value: unknown): string {
   return JSON.stringify(value) ?? 'null';
 }
 type Table = 'sessions' | 'approvals' | 'proposals' | 'evidence' | 'events' | 'executions' | 'erp_actions' | 'materials' | 'inventory' | 'purchases';
+export interface CheckpointChanges { approval?: Approval; event?: Omit<AgentEvent, 'id' | 'createdAt'>; invalidateApprovals?: boolean; requireIdle?: boolean }
 export class Store {
   readonly db: DatabaseSync;
   private closed = false;
@@ -34,10 +35,15 @@ export class Store {
   list<T>(table: Table, sessionId?: string): T[] { return (sessionId === undefined ? this.db.prepare(`SELECT body FROM ${table} ORDER BY rowid`).all() : this.db.prepare(`SELECT body FROM ${table} WHERE session_id=? ORDER BY rowid`).all(sessionId)).map(r => JSON.parse(String(r.body)) as T); }
   insertSession(s: Session) { this.transaction(() => { this.put('sessions', s.id, s.id, s); this.db.prepare('INSERT INTO checkpoints(session_id,version,body) VALUES(?,?,?)').run(s.id, s.version, JSON.stringify(s)); }); }
   getSession(id: string): Session { const s = this.get<Session>('sessions', id); if (!s) throw new AppError('NOT_FOUND', 'session not found', 404); return s; }
-  saveSession(s: Session) { this.transaction(() => {
+  saveSession(s: Session, changes: CheckpointChanges = {}) { this.transaction(() => {
+    if (changes.requireIdle) this.assertNotRunning(s.id);
     const current = this.getSession(s.id); if (current.version !== s.version) throw new AppError('VERSION_CONFLICT', 'checkpoint version changed', 409);
     const next = { ...s, version: s.version + 1 }; this.put('sessions', s.id, s.id, next);
-    this.db.prepare('INSERT INTO checkpoints(session_id,version,body) VALUES(?,?,?)').run(s.id, next.version, JSON.stringify(next)); s.version = next.version;
+    this.db.prepare('INSERT INTO checkpoints(session_id,version,body) VALUES(?,?,?)').run(s.id, next.version, JSON.stringify(next));
+    if (changes.invalidateApprovals) this.invalidateApprovals(s.id);
+    if (changes.approval) this.saveApproval(changes.approval);
+    if (changes.event) this.event(changes.event);
+    s.version = next.version;
   }); }
   acquire(id: string, owner: string) { this.transaction(() => {
     const lease = this.db.prepare('SELECT owner,expires FROM leases WHERE session_id=?').get(id);
