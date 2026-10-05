@@ -1,0 +1,1 @@
+{ "type": "PURCHASE", "query": "BRG-6204", "demand": 20, "safetyStock": 3, "requestedQuantity": 15, "unit": "个" }

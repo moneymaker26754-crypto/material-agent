@@ -6,3 +6,5 @@ Execution: native in current empty project directory; no existing branch or file
 
 Task 1: complete — domain tests RED (7 missing-behavior failures) → GREEN 14/14; TypeScript check passed; commit 9b7ca55.
 Task 2: Ruling: MCP/CLI inventory output includes AVAILABLE/FROZEN/SCRAPPED rows; integration assertion changed from exact one-row array to containment — filtering belongs to business rules, per spec. Cost if wrong: inflated supply, covered by domain tests.
+
+Task 2: complete — workflow/control/adapters tests RED missing modules → GREEN; full suite 39/39; typecheck/build passed; commit 874b25f. SQLite Node 24 experimental warning is an upstream runtime property.

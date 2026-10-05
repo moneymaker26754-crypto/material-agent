@@ -1,0 +1,1 @@
+{ "type": "MATERIAL", "query": "新密封圈", "newMaterial": { "id": "m-seal-new", "code": "SEAL-NEW", "name": "新密封圈", "aliases": ["seal"], "specification": "S10", "unit": "个", "currency": "CNY", "unitPriceMinor": 200 } }

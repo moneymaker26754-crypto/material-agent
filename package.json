@@ -4,9 +4,9 @@
   "engines": { "node": ">=24.0.0 <25" },
   "scripts": {
     "typecheck": "tsc --noEmit", "build": "tsc -p tsconfig.build.json",
-    "test": "vitest run", "dev": "tsx src/api/main.ts", "start": "node dist/api/main.js",
-    "cli": "tsx src/cli.ts", "demo": "tsx src/cli.ts demo", "benchmark": "tsx src/cli.ts benchmark",
-    "test:live": "vitest run tests/live", "mcp": "tsx src/tools/mcp-server.ts"
+    "test": "vitest run", "dev": "tsx --env-file-if-exists=.env src/api/main.ts", "start": "node --env-file-if-exists=.env dist/api/main.js",
+    "cli": "tsx --env-file-if-exists=.env src/cli.ts", "demo": "tsx src/cli.ts demo", "benchmark": "tsx src/cli.ts benchmark",
+    "test:live": "vitest run --config vitest.live.config.ts", "mcp": "tsx src/tools/mcp-server.ts"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "1.0.2", "@earendil-works/pi-ai": "1.0.2",
