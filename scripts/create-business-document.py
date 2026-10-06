@@ -118,7 +118,7 @@ while i < len(lines):
         content = re.sub(r'^(#{1,3} |[-] )', '', line)
         paragraph = document.add_paragraph(style=style)
         add_inline(paragraph, content)
-        if line.startswith('## 二 '):
+        if line.startswith('## 二 ') or line.startswith('## 六 '):
             paragraph.paragraph_format.page_break_before = True
         if line.startswith('整体链路为：'):
             paragraph.paragraph_format.keep_with_next = True
